@@ -1,7 +1,7 @@
 package sftp
 
 import (
-	"bufio" // buffered reader
+	"bufio"
 	"fmt"
 	"io"
 	"os"
