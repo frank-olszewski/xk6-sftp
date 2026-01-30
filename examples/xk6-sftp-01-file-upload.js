@@ -1,14 +1,25 @@
 import sftp from 'k6/x/sftp';
 
-const file_to_upload = open("example.txt");
-const sftp_host = __ENV.SFTP_HOST;
-const sftp_port = __ENV.SFTP_PORT;
-const sftp_user = __ENV.SFTP_USER;
-const sftp_pass = __ENV.SFTP_PASS;
+// Use binary mode ('b') to get ArrayBuffer, which converts cleanly to []byte in Go
+const fileData = open('example.txt', 'b');
 
-export default function() {
-    console.log(`Connecting to ${sftp_user}@${sftp_host}:${sftp_port}`)
-    sftp.connect(sftp_host, sftp_user, sftp_pass, sftp_port);
-    sftp.upload(file_to_upload, "example.txt");
-    sftp.disconnect();
+const host = __ENV.SFTP_HOST;
+const port = parseInt(__ENV.SFTP_PORT) || 22;
+const user = __ENV.SFTP_USER;
+const pass = __ENV.SFTP_PASS;
+const remotePath = __ENV.SFTP_REMOTE_PATH || '/upload/example.txt';
+
+export default function () {
+    let conn;
+    try {
+        conn = sftp.connect(host, user, pass, port);
+        conn.upload(fileData, remotePath);
+        console.log(`Uploaded to ${remotePath}`);
+    } catch (err) {
+        console.error(`SFTP error: ${err}`);
+    } finally {
+        if (conn) {
+            conn.close();
+        }
+    }
 }

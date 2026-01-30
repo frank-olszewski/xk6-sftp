@@ -1,16 +1,28 @@
 import sftp from 'k6/x/sftp';
 
-const sftp_host = __ENV.SFTP_HOST;
-const sftp_port = __ENV.SFTP_PORT;
-const sftp_user = __ENV.SFTP_USER;
-const sftp_pass = __ENV.SFTP_PASS;
+const host = __ENV.SFTP_HOST;
+const port = parseInt(__ENV.SFTP_PORT) || 22;
+const user = __ENV.SFTP_USER;
+const pass = __ENV.SFTP_PASS;
+const remotePath = __ENV.SFTP_REMOTE_PATH || '/upload';
 
-export default function() {
-    const remotePath = "./dropoff";
+export default function () {
+    let conn;
+    try {
+        conn = sftp.connect(host, user, pass, port);
 
-    sftp.connect(sftp_host, sftp_user, sftp_pass, sftp_port);
-    let folderContents = sftp.ls(remotePath);
-    sftp.disconnect();
+        // ls() returns an array of objects with name, size, isDir, modTime properties
+        const files = conn.ls(remotePath);
 
-    folderContents.forEach((file) => console.log(` [${file.isDir() ? "DIR" : "FIL"}] ${remotePath}${file.name()}  .. ${file.size()}`));
+        files.forEach((file) => {
+            const type = file.isDir ? 'DIR' : 'FILE';
+            console.log(`[${type}] ${file.name} (${file.size} bytes)`);
+        });
+    } catch (err) {
+        console.error(`SFTP error: ${err}`);
+    } finally {
+        if (conn) {
+            conn.close();
+        }
+    }
 }
