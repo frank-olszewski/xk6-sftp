@@ -4,67 +4,98 @@ A [k6](https://github.com/grafana/k6) extension for interacting with SFTP server
 
 ## Build
 
-### Docker
+### macOS (Recommended)
 
-The below steps are sourced from the official [k6 documentation](https://grafana.com/docs/k6/latest/extensions/build-k6-binary-using-docker/)
-on this topic. If the following steps contain errors, please reference the official documentation.
-
-```bash
-docker run --rm -u "$(id -u):$(id -g)" -v "${PWD}:/xk6" grafana/xk6 build --with github.com/grafana/xk6-sftp@latest
-```
-
-### Local (via `go`)
-
-#### Prerequisites
-
-To build a `k6` binary with this extension, first ensure you have the following:
-
-- [Go Toolchain](https://go.dev/doc/toolchain)
-- Git
-
-#### Steps
-
-1. Download [xk6](https://github.com/grafana/xk6/):
+Native builds work best on macOS. Install the Go toolchain first, then:
 
 ```bash
-go install github.com/grafana/xk6/cmd/xk6@latest
-```
+# Install xk6
+go install go.k6.io/xk6/cmd/xk6@latest
 
-2. Build the binary:
-
-```bash
+# Build k6 with this extension
 xk6 build --with github.com/grafana/xk6-sftp@latest
 ```
 
-This will result in a `k6` binary in the current directory.
+### macOS via Docker
+
+If you prefer Docker, cross-compiled binaries require code signing before macOS will run them:
+
+```bash
+# Build for Apple Silicon (M1/M2/M3)
+docker run --rm -u "$(id -u):$(id -g)" \
+  -v "${PWD}:/xk6" -w /xk6 \
+  -e GOOS=darwin -e GOARCH=arm64 \
+  grafana/xk6 build --with github.com/grafana/xk6-sftp@latest
+
+# Build for Intel Mac
+docker run --rm -u "$(id -u):$(id -g)" \
+  -v "${PWD}:/xk6" -w /xk6 \
+  -e GOOS=darwin -e GOARCH=amd64 \
+  grafana/xk6 build --with github.com/grafana/xk6-sftp@latest
+
+# Sign the binary (required for cross-compiled macOS binaries)
+codesign -f -s - ./k6
+```
+
+Without signing, macOS kills the binary immediately with no error message.
+
+### Linux
+
+```bash
+docker run --rm -u "$(id -u):$(id -g)" \
+  -v "${PWD}:/xk6" -w /xk6 \
+  grafana/xk6 build --with github.com/grafana/xk6-sftp@latest
+```
+
+### From Source
+
+For local development:
+
+```bash
+# Clone the repo
+git clone https://github.com/grafana/xk6-sftp.git
+cd xk6-sftp
+
+# Build with local changes
+xk6 build --with xk6-sftp=.
+```
+
+See the [k6 documentation](https://grafana.com/docs/k6/latest/extensions/build-k6-binary-using-docker/) for more build options.
 
 ## Usage
 
 ```javascript
 import sftp from "k6/x/sftp";
 
+// Use binary mode ('b') for file uploads
+const fileData = open("myfile.txt", "b");
+
 export default function () {
-  // connect() returns a Connection object that is unique to the VU
-  const conn = sftp.connect(
-    __ENV.SFTP_HOST,
-    __ENV.SFTP_USER,
-    __ENV.SFTP_PASS,
-    parseInt(__ENV.SFTP_PORT) || 22,
-  );
+  let conn;
+  try {
+    conn = sftp.connect(
+      __ENV.SFTP_HOST,
+      __ENV.SFTP_USER,
+      __ENV.SFTP_PASS,
+      parseInt(__ENV.SFTP_PORT) || 22
+    );
 
-  // Upload a file
-  const data = open("myfile.txt");
-  conn.upload(data, "/remote/path/myfile.txt");
+    // Upload a file
+    conn.upload(fileData, "/remote/path/myfile.txt");
 
-  // List directory contents
-  const files = conn.ls("/remote/path");
-  files.forEach((f) => console.log(`${f.name} - ${f.size} bytes`));
+    // List directory contents
+    const files = conn.ls("/remote/path");
+    files.forEach((f) => console.log(`${f.name} - ${f.size} bytes`));
 
-  // Download a file
-  conn.download("/remote/path/file.txt", "./local-file.txt");
-
-  // Always close the connection
-  conn.close();
+    // Download a file
+    conn.download("/remote/path/file.txt", "./local-file.txt");
+  } catch (err) {
+    console.error(`SFTP error: ${err}`);
+  } finally {
+    if (conn) {
+      conn.close();
+    }
+  }
 }
 ```
 
