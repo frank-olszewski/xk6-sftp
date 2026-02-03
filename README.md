@@ -33,6 +33,12 @@ docker run --rm -u "$(id -u):$(id -g)" \
   -e GOOS=darwin -e GOARCH=amd64 \
   grafana/xk6 build --with github.com/grafana/xk6-sftp@latest
 
+# When building a locally-developed xk6-sftp project
+docker run --rm -u "$(id -u):$(id -g)" \
+  -v "${PWD}:/xk6" -w /xk6 \
+  -e GOOS=darwin -e GOARCH=arm64 \
+  grafana/xk6 build --with xk6-sftp=.
+
 # Sign the binary (required for cross-compiled macOS binaries)
 codesign -f -s - ./k6
 ```
@@ -77,7 +83,7 @@ export default function () {
       __ENV.SFTP_HOST,
       __ENV.SFTP_USER,
       __ENV.SFTP_PASS,
-      parseInt(__ENV.SFTP_PORT) || 22
+      parseInt(__ENV.SFTP_PORT) || 22,
     );
 
     // Upload a file
